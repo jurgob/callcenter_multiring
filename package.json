@@ -7,7 +7,7 @@
     "node": "14.x"
   },
   "scripts": {
-    "start": "conversation-api-function run .",
+    "start": "conversation-api-function run . | bunyan",
     "build": "cd client && npm run build && cp -r ./build ../build",
     "postinstall": "cd client && npm install "
   },
@@ -15,5 +15,8 @@
   "license": "ISC",
   "dependencies": {
     "conversation-api-function": "0.0.15"
+  },
+  "devDependencies": {
+    "bunyan": "^1.8.15"
   }
 }

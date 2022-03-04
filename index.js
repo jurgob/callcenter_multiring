@@ -42,6 +42,42 @@ const rtcEvent = async (event, { logger, csClient }) => {
   }
 };
 
+const voiceEvent = async (req, res, next) => {
+  const { logger } = req.nexmo;
+  try {
+    logger.info("event", { event: req.body });
+    res.json({});
+  } catch (err) {
+    logger.error("Error on voiceEvent function");
+  }
+};
+
+const voiceAnswer = async (req, res, next) => {
+  const { logger,storageClient } = req.nexmo;
+  const username = await storageClient.get('connected_user')
+  logger.info("req", { req_body: req.body });
+  try {
+    return res.json([
+      {
+        action: "talk",
+        text: "Please wait while we connect you to an agent",
+      },
+      {
+        action: "connect",
+        endpoint: [
+          {
+            type: "app",
+            user: username
+          },
+        ],
+      },
+    ]);
+  } catch (err) {
+    logger.error("Error on voiceAnswer function");
+  }
+};
+
+
 const messageEvent = async (event, { logger, csClient }) => {
   try {
   } catch (err) {
@@ -61,6 +97,21 @@ const route = (app, express) => {
     res.sendFile(path.join(__dirname, "build", "index.html"));
   });
 
+  app.get("/api/connected", async (req, res) => {
+    const {
+      generateBEToken,
+      generateUserToken,
+      logger,
+      csClient,
+      storageClient,
+    } = req.nexmo;
+
+    const username = await storageClient.get('connected_user')
+    res.json({
+      username,
+    });
+  });
+
   app.post("/api/login", async (req, res) => {
     const {
       generateBEToken,
@@ -71,6 +122,7 @@ const route = (app, express) => {
     } = req.nexmo;
 
     const { username } = req.body;
+    await storageClient.set('connected_user', username)
     res.json({
       user: username,
       token: generateUserToken(username),
@@ -187,6 +239,8 @@ const route = (app, express) => {
 };
 
 module.exports = {
+  voiceEvent,
+  voiceAnswer,
   rtcEvent,
   messageEvent,
   route,
