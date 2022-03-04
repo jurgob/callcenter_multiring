@@ -59,10 +59,10 @@ const voiceAnswer = async (req, res, next) => {
   logger.info("req", { req_body: req.body });
   try {
     return res.json([
-      {
-        action: "talk",
-        text: "Please wait while we connect you to an agent",
-      },
+      // {
+      //   action: "talk",
+      //   text: "Please wait while we connect you to an agent",
+      // },
       {
         action: "connect",
         from,

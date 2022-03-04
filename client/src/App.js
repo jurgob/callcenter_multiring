@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import useLocalStorage from "use-local-storage";
+
 import axios from "axios";
 
 import FormLogin from "./components/FormLogin";
@@ -10,7 +12,7 @@ import "./App.css";
 const BACKEND_URL = `http://localhost:5001`;
 
 function App() {
-  const [loginData, setLoginData] = useState(null);
+  const [loginData, setLoginData] = useLocalStorage("login_data",null);
   const [subscribeData, setsubscribeData] = useState(null);
 
   const onSubmitLogin = async ({ username }) => {

@@ -1,16 +1,33 @@
 import React, { useState, useEffect } from 'react';
 
 import CSClient from '../utils/csClient'
-import FormCreateConversation from '../components/FormCreateConversation'
-import FormJoinConversation from '../components/FormJoinConversation'
-import FormEnableAudioInConversations from '../components/FormEnableAudioInConversations'
-import Audio from '../components/Audio'
-import createRtcAudioConnection from '../utils/createRtcAudioConnection'
+// import FormCreateConversation from '../components/FormCreateConversation'
+// import FormJoinConversation from '../components/FormJoinConversation'
+// import FormEnableAudioInConversations from '../components/FormEnableAudioInConversations'
+// import Audio from '../components/Audio'
+// import createRtcAudioConnection from '../utils/createRtcAudioConnection'
 import EventsHistory from '../components/EventsHistory'
+import useLocalStorage from "use-local-storage";
 
 import NexmoClient from "nexmo-client";
 
 const nexmoClient = new NexmoClient({ debug: false });
+
+function  CallsHistory({calls}){
+    return (
+        <div>
+            {calls && calls.map(({status, direction,from}, idx) => (
+                <div key={idx} >
+                    <div>status: {status}</div>
+                    <div>direction: {direction}</div>
+                    <div>from: {from}</div>
+                </div>
+            ))
+
+            }
+        </div>
+    )
+}
 
 function CurrentCall({status, direction,from, onReject,onAnswer,onHangUp}){
     return <div>
@@ -38,7 +55,7 @@ const defCallStatus = {
 }
 
 function LoggedPage(props) {
-
+    const [callsHistory, setCallsHistory]= useLocalStorage("calls_history", [])
     const [curCall, setCurCall]= useState(defCallStatus)
     // const [curCallStatus, setCurCallStatus]= useState("")
     // const [callHistory, setCallHistory] = useState([])
@@ -55,7 +72,7 @@ function LoggedPage(props) {
     })
 
 
-    //init cs client, called on login success
+    //executedon login success
     useEffect(() => {
 
 
@@ -97,8 +114,19 @@ function LoggedPage(props) {
                     direction: call.direction,
                     obj: call
                 })
-                // if(call.status)
                 console.log(`call.status ${call.status}`)
+                // if(call.status === 'rejected'){
+                //     const callHistory = {
+                //         ...curCall
+                //     }
+                //     delete callHistory.obj
+                //     console.log(`curCall`, curCall)
+                //     console.log(`callHistory`, callHistory)
+
+                //     setCallsHistory( callsHistory => [...callsHistory, callHistory] )
+                //     setCurCall(defCallStatus)
+                // }
+                
               });
 
         }
@@ -122,6 +150,24 @@ function LoggedPage(props) {
 
     }, [props.loginData?.token])
     
+    //executed on current call status change
+    useEffect(() => {
+        
+         if(curCall?.status === 'rejected'){
+            const callHistory = {
+                ...curCall
+            }
+            delete callHistory.obj
+            console.log(`curCall`, curCall)
+            console.log(`callHistory`, callHistory)
+
+            setCallsHistory( callsHistory => [...callsHistory, callHistory] )
+            setCurCall(defCallStatus)
+        }
+
+
+    }, [curCall?.status])
+
     return (
         <div className="App">
             <h1>Conversations Client Playground</h1>
@@ -140,6 +186,7 @@ function LoggedPage(props) {
                     eventsHistory={eventsHistory}
                     onCleanHistoryClick={() => setEvents(() => [])}
                 />
+                {callsHistory.length > 0 &&  <CallsHistory calls={callsHistory} />}
             </div>
 
         </div>
