@@ -23,32 +23,13 @@ function CurrentCall({status, direction,onReject}){
 }
 
 
+// const csClient = CSClient()
 
-const csClient = CSClient()
-
-function useCSClientEvents(csClient) {
-
-    const [event, setEvent] = useState(null)
-
-    const setLastEvent = (clientEvent) => {
-        setEvent(clientEvent)
-    }
-
-    useEffect(() => {
-        csClient.onEvent(setLastEvent)
-        csClient.onRequestStart(setLastEvent)
-        csClient.onRequestEnd(setLastEvent)
-    }, [])
-
-    return event
-}
 
 function LoggedPage(props) {
 
-    // const [csClient, setCsClient] = useState(null)
-
-    const lastCSClientEvent = useCSClientEvents(csClient)
     const [curCall, setCurCall]= useState(null)
+    const [token, setToken]= useState("")
     const [eventsHistory, setEvents] = useState([])
     const [myConversationsState, setMyConversationsState] = useState([])
     const [conversationsEvents, setConversationsEvents] = useState({})
@@ -62,7 +43,16 @@ function LoggedPage(props) {
 
     //init cs client, called on login success
     useEffect(() => {
-        console.log(` ->->->-> useEffect init csClient`)
+
+        
+        if(token && token === props.loginData?.token){
+            return;
+        }else{
+            setToken(props.loginData?.token)
+        }
+
+        console.log(` ->->->-> useEffect init csClient token: `, props.loginData?.token)
+
 
         const initCSClient = async () => {
             console.log(` ++++ initialize createCSClient`)
@@ -77,174 +67,165 @@ function LoggedPage(props) {
                     console.log(`conv ${call.conversation.id} event: `, from, event)
                 })
 
-                
-
                 setCurCall(call)
-
-
-
             })
 
-
-
-            csClient.connect({
-                token, cs_url, ws_url
-            });
-
         }
+
+        
+
+        if (nexmoClient.connection.io) {
+            nexmoClient.connection.io.on("packet", async (packet) => {
+              if (packet.type !== 2) return;
+              if (packet.data[0] === "echo") return;
+              const clientEvent = {
+                type: packet.data[0],
+                ...packet.data[1]
+              };
+              console.log(`socket event`, clientEvent)
+              setEvents(eventsHistory => [...eventsHistory, clientEvent])
+            });
+          }
 
         initCSClient()
 
+    }, [props.loginData?.token])
 
-    }, [props.loginData])
+    // useEffect(() => {
+    //     console.log(` ->->->-> useEffect csClient Handler `, csClient);
+    //     if (!csClient)
+    //         return;
 
-    useEffect(() => {
+    //     const onTrack = (e) => {
+    //         const _setAudioSrcObject = audioState.peerConnection.getRemoteStreams()[0]
+    //         console.log(`_setAudioSrcObject `, _setAudioSrcObject)
 
-        const appendHistory = (clientEvent) => {
-            if (clientEvent)
-                setEvents(eventsHistory => [...eventsHistory, clientEvent])
-        }
+    //         setAudioState(as => {
+    //             console.log(`setAudioState onTrack`, {
+    //                 ...as,
+    //                 audioSrcObject: _setAudioSrcObject
+    //             })
+    //             return {
+    //                 ...as,
+    //                 audioSrcObject: _setAudioSrcObject
+    //             }
+    //         })
+    //     }
 
-        appendHistory(lastCSClientEvent)
+    //     csClient.onEvent(async (evt) => {
+    //         if (evt.type === 'rtc:answer') {
+    //             const sdp = evt.body.answer
+    //             const remoteDescription = new RTCSessionDescription({
+    //                 type: 'answer',
+    //                 sdp,
+    //             })
+    //             if (audioState.peerConnection) {
+    //                 audioState.peerConnection.ontrack = onTrack
+    //                 audioState.peerConnection.setRemoteDescription(remoteDescription)
+    //             }
+    //         }
+    //     })
 
-    }, [lastCSClientEvent])
-
-
-    useEffect(() => {
-        console.log(` ->->->-> useEffect csClient Handler `, csClient);
-        if (!csClient)
-            return;
-
-        const onTrack = (e) => {
-            const _setAudioSrcObject = audioState.peerConnection.getRemoteStreams()[0]
-            console.log(`_setAudioSrcObject `, _setAudioSrcObject)
-
-            setAudioState(as => {
-                console.log(`setAudioState onTrack`, {
-                    ...as,
-                    audioSrcObject: _setAudioSrcObject
-                })
-                return {
-                    ...as,
-                    audioSrcObject: _setAudioSrcObject
-                }
-            })
-        }
-
-        csClient.onEvent(async (evt) => {
-            if (evt.type === 'rtc:answer') {
-                const sdp = evt.body.answer
-                const remoteDescription = new RTCSessionDescription({
-                    type: 'answer',
-                    sdp,
-                })
-                if (audioState.peerConnection) {
-                    audioState.peerConnection.ontrack = onTrack
-                    audioState.peerConnection.setRemoteDescription(remoteDescription)
-                }
-            }
-        })
-
-        csClient.onRequestEnd(async (event) => {
-            const url = event.request.url
-            if (url.includes("/users/") && url.includes("/conversations") ) {
-                const conversations = event.response.data._embedded.conversations
-                setMyConversationsState(conversations)
-            }
+    //     csClient.onRequestEnd(async (event) => {
+    //         const url = event.request.url
+    //         if (url.includes("/users/") && url.includes("/conversations") ) {
+    //             const conversations = event.response.data._embedded.conversations
+    //             setMyConversationsState(conversations)
+    //         }
 
             
-        })
+    //     })
 
-    }, [audioState])
+    // }, [audioState])
 
-    const onEnableAudioInConversationSubmit = async (data) => {
-        // const { conversation_id } = data
-        try {
-            console.log(`--- onEnableAudioInConversationSubmit`, data)
-            const { audio_conversation_id } = data
-            const conversation_id = audio_conversation_id
-            const pc = await createRtcAudioConnection()
+    // const onEnableAudioInConversationSubmit = async (data) => {
+    //     // const { conversation_id } = data
+    //     try {
+    //         console.log(`--- onEnableAudioInConversationSubmit`, data)
+    //         const { audio_conversation_id } = data
+    //         const conversation_id = audio_conversation_id
+    //         const pc = await createRtcAudioConnection()
 
-            console.log(`setAudioState `, { ...audioState, peerConnection: pc })
-            setAudioState({ ...audioState, peerConnection: pc })
+    //         console.log(`setAudioState `, { ...audioState, peerConnection: pc })
+    //         setAudioState({ ...audioState, peerConnection: pc })
 
-            // peerConnection = pc
-            const userConvRes = await csClient.request({
-                url: `/v0.3/users/${csClient.getSessionData().user_id}/conversations`,
-                method: "get"
-            })
+    //         // peerConnection = pc
+    //         const userConvRes = await csClient.request({
+    //             url: `/v0.3/users/${csClient.getSessionData().user_id}/conversations`,
+    //             method: "get"
+    //         })
 
-            const member_id = userConvRes.data._embedded.conversations.find(({ id }) => id === conversation_id)._embedded.member.id
+    //         const member_id = userConvRes.data._embedded.conversations.find(({ id }) => id === conversation_id)._embedded.member.id
 
-            await csClient.request({
-                url: `/v0.1/conversations/${conversation_id}/rtc`,
-                method: "post",
-                data: {
-                    from: member_id,
-                    body: {
-                        offer: pc.localDescription,
-                    }
-                }
-            })
+    //         await csClient.request({
+    //             url: `/v0.1/conversations/${conversation_id}/rtc`,
+    //             method: "post",
+    //             data: {
+    //                 from: member_id,
+    //                 body: {
+    //                     offer: pc.localDescription,
+    //                 }
+    //             }
+    //         })
 
-        } catch (e) {
-            console.log(`onEnableAudioInConversationSubmit error: `, e)
-        }
+    //     } catch (e) {
+    //         console.log(`onEnableAudioInConversationSubmit error: `, e)
+    //     }
 
-    }
+    // }
 
-    const onCreateConversationSubmit = async (data) => {
-        const { conversation_name, conversation_display_name } = data
-        const convRes = await csClient.request({
-            url: `/v0.3/conversations`,
-            method: "post",
-            data: {
-                "name": conversation_name,
-                "display_name": conversation_display_name
-            }
-        })
+    // const onCreateConversationSubmit = async (data) => {
+    //     const { conversation_name, conversation_display_name } = data
+    //     const convRes = await csClient.request({
+    //         url: `/v0.3/conversations`,
+    //         method: "post",
+    //         data: {
+    //             "name": conversation_name,
+    //             "display_name": conversation_display_name
+    //         }
+    //     })
 
-        await csClient.request({
-            url: `/v0.3/conversations/${convRes.data.id}/members`,
-            method: "post",
-            data: {
-                "state": "joined",
-                "user": {
-                    name: csClient.getSessionData().user_name,
-                },
-                "channel": {
-                    "type": "app"
-                }
-            }
-        })
+    //     await csClient.request({
+    //         url: `/v0.3/conversations/${convRes.data.id}/members`,
+    //         method: "post",
+    //         data: {
+    //             "state": "joined",
+    //             "user": {
+    //                 name: csClient.getSessionData().user_name,
+    //             },
+    //             "channel": {
+    //                 "type": "app"
+    //             }
+    //         }
+    //     })
 
-    }
+    // }
 
-    const onJoinConversationSubmit = async (data) => {
-        console.log('onJoinConversationSubmit ', data)
-        const { conversation_join_id} = data
-        await csClient.request({
-            url: `/v0.3/conversations/${conversation_join_id}/members`,
-            method: "post",
-            data: {
-                "state": "joined",
-                "user": {
-                    name: csClient.getSessionData().user_name,
-                },
-                "channel": {
-                    "type": "app"
-                }
-            }
-        })
+    // const onJoinConversationSubmit = async (data) => {
+    //     console.log('onJoinConversationSubmit ', data)
+    //     const { conversation_join_id} = data
+    //     await csClient.request({
+    //         url: `/v0.3/conversations/${conversation_join_id}/members`,
+    //         method: "post",
+    //         data: {
+    //             "state": "joined",
+    //             "user": {
+    //                 name: csClient.getSessionData().user_name,
+    //             },
+    //             "channel": {
+    //                 "type": "app"
+    //             }
+    //         }
+    //     })
 
-    }
+    // }
 
-    const getMyConversations = async () => {
-        await csClient.request({
-            url: `/v0.3/users/${csClient.getSessionData().user_id}/conversations`,
-            method: "get"
-        })
-    }
+    // const getMyConversations = async () => {
+    //     await csClient.request({
+    //         url: `/v0.3/users/${csClient.getSessionData().user_id}/conversations`,
+    //         method: "get"
+    //     })
+    // }
 
     
     return (
@@ -256,7 +237,7 @@ function LoggedPage(props) {
                     direction={curCall.direction} 
                     onReject={() => { curCall.reject()  }} 
                 />}
-                <h2>Create Conversation and Join</h2>
+                {/* <h2>Create Conversation and Join</h2>
                 <FormCreateConversation onSubmit={onCreateConversationSubmit} />
                 <h2>Join Conversation</h2>
                 <FormJoinConversation onSubmit={onJoinConversationSubmit} />
@@ -279,7 +260,8 @@ function LoggedPage(props) {
                     </div>
 
                     }
-                </div>
+                </div> */}
+
 
                 <EventsHistory
                     eventsHistory={eventsHistory}

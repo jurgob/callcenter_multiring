@@ -37,7 +37,7 @@ function App() {
 
   useEffect(() => {
     document.title = "Conversation Service examples";
-  });
+  }, []);
 
   return (
     <div>
