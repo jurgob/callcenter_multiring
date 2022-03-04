@@ -8,6 +8,20 @@ import Audio from '../components/Audio'
 import createRtcAudioConnection from '../utils/createRtcAudioConnection'
 import EventsHistory from '../components/EventsHistory'
 
+import NexmoClient from "nexmo-client";
+
+const nexmoClient = new NexmoClient({ debug: false });
+
+function CurrentCall({status, direction,onReject}){
+    return <div>
+        <div>status: {status}</div>
+        <div>direction: {direction}</div>
+        <div>
+            <button onClick={onReject} >Reject</button>
+        </div>
+    </div>
+}
+
 
 
 const csClient = CSClient()
@@ -24,7 +38,7 @@ function useCSClientEvents(csClient) {
         csClient.onEvent(setLastEvent)
         csClient.onRequestStart(setLastEvent)
         csClient.onRequestEnd(setLastEvent)
-    })
+    }, [])
 
     return event
 }
@@ -34,6 +48,7 @@ function LoggedPage(props) {
     // const [csClient, setCsClient] = useState(null)
 
     const lastCSClientEvent = useCSClientEvents(csClient)
+    const [curCall, setCurCall]= useState(null)
     const [eventsHistory, setEvents] = useState([])
     const [myConversationsState, setMyConversationsState] = useState([])
     const [conversationsEvents, setConversationsEvents] = useState({})
@@ -45,13 +60,32 @@ function LoggedPage(props) {
     })
 
 
-    //init cs client
+    //init cs client, called on login success
     useEffect(() => {
         console.log(` ->->->-> useEffect init csClient`)
 
         const initCSClient = async () => {
             console.log(` ++++ initialize createCSClient`)
             const { token, cs_url, ws_url } = props.loginData
+            const nexmoApp = await nexmoClient.login(token)
+            window.nexmoClient = nexmoClient
+            window.nexmoApp = nexmoApp
+
+            nexmoApp.on('member:call', (member, call) => {
+                window.call = call
+                call.conversation.on("member:left", call.conversation.id, (from, event) => {
+                    console.log(`conv ${call.conversation.id} event: `, from, event)
+                })
+
+                
+
+                setCurCall(call)
+
+
+
+            })
+
+
 
             csClient.connect({
                 token, cs_url, ws_url
@@ -217,6 +251,11 @@ function LoggedPage(props) {
         <div className="App">
             <h1>Conversations Client Playground</h1>
             <div>
+                {curCall && <CurrentCall 
+                    status={curCall.status} 
+                    direction={curCall.direction} 
+                    onReject={() => { curCall.reject()  }} 
+                />}
                 <h2>Create Conversation and Join</h2>
                 <FormCreateConversation onSubmit={onCreateConversationSubmit} />
                 <h2>Join Conversation</h2>
