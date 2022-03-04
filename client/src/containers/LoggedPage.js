@@ -12,12 +12,17 @@ import NexmoClient from "nexmo-client";
 
 const nexmoClient = new NexmoClient({ debug: false });
 
-function CurrentCall({status, direction,onReject}){
+function CurrentCall({status, direction,from, onReject,onAnswer,onHangUp}){
     return <div>
         <div>status: {status}</div>
         <div>direction: {direction}</div>
+        <div>from: {from}</div>
         <div>
             <button onClick={onReject} >Reject</button>
+            <span> | </span>
+            <button onClick={onAnswer} >Answer</button>
+            <span> | </span>
+            <button onClick={onHangUp} >Hang Up</button>
         </div>
     </div>
 }
@@ -25,10 +30,19 @@ function CurrentCall({status, direction,onReject}){
 
 // const csClient = CSClient()
 
+const defCallStatus = {
+    status: "",
+    from:"",
+    direction:"",
+    obj: null
+}
 
 function LoggedPage(props) {
 
-    const [curCall, setCurCall]= useState(null)
+    const [curCall, setCurCall]= useState(defCallStatus)
+    // const [curCallStatus, setCurCallStatus]= useState("")
+    // const [callHistory, setCallHistory] = useState([])
+
     const [token, setToken]= useState("")
     const [eventsHistory, setEvents] = useState([])
     const [myConversationsState, setMyConversationsState] = useState([])
@@ -66,9 +80,26 @@ function LoggedPage(props) {
                 call.conversation.on("member:left", call.conversation.id, (from, event) => {
                     console.log(`conv ${call.conversation.id} event: `, from, event)
                 })
-
-                setCurCall(call)
+                // setCurCallStatus(call.status)
+                setCurCall({
+                    from: call.from,
+                    status: call.status,
+                    direction: call.direction,
+                    obj:call
+                })
             })
+
+            nexmoApp.on("call:status:changed",(call) => {
+                // setCurCallStatus(call.status)
+                setCurCall({
+                    from: call.from,
+                    status: call.status,
+                    direction: call.direction,
+                    obj: call
+                })
+                // if(call.status)
+                console.log(`call.status ${call.status}`)
+              });
 
         }
 
@@ -95,13 +126,16 @@ function LoggedPage(props) {
         <div className="App">
             <h1>Conversations Client Playground</h1>
             <div>
-                {curCall && <CurrentCall 
+                {curCall.obj && <CurrentCall 
                     status={curCall.status} 
                     direction={curCall.direction} 
-                    onReject={() => { curCall.reject()  }} 
+                    from={curCall.from}
+                    onReject={() => { curCall.obj.reject()  }} 
+                    onAnswer={() => { curCall.obj.answer()  }} 
+                    onHangUp={() => { curCall.obj.hangUp()  }} 
                 />}
                
-
+                     
                 <EventsHistory
                     eventsHistory={eventsHistory}
                     onCleanHistoryClick={() => setEvents(() => [])}

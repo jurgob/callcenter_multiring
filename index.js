@@ -54,6 +54,7 @@ const voiceEvent = async (req, res, next) => {
 
 const voiceAnswer = async (req, res, next) => {
   const { logger,storageClient } = req.nexmo;
+  const {from} = req.body;
   const username = await storageClient.get('connected_user')
   logger.info("req", { req_body: req.body });
   try {
@@ -64,6 +65,7 @@ const voiceAnswer = async (req, res, next) => {
       },
       {
         action: "connect",
+        from,
         endpoint: [
           {
             type: "app",
