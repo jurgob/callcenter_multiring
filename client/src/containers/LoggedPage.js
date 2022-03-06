@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-import CSClient from '../utils/csClient'
+// import CSClient from '../utils/csClient'
 // import FormCreateConversation from '../components/FormCreateConversation'
 // import FormJoinConversation from '../components/FormJoinConversation'
 // import FormEnableAudioInConversations from '../components/FormEnableAudioInConversations'
@@ -62,14 +62,13 @@ function LoggedPage(props) {
 
     const [token, setToken]= useState("")
     const [eventsHistory, setEvents] = useState([])
-    const [myConversationsState, setMyConversationsState] = useState([])
-    const [conversationsEvents, setConversationsEvents] = useState({})
+    // const [myConversationsState, setMyConversationsState] = useState([])
+    // const [conversationsEvents, setConversationsEvents] = useState({})
 
-    // useCSClientEvents
-    const [audioState, setAudioState] = useState({
-        audioSrcObject: null,
-        peerConnection: null
-    })
+    // const [audioState, setAudioState] = useState({
+    //     audioSrcObject: null,
+    //     peerConnection: null
+    // })
 
 
     //executedon login success
@@ -115,17 +114,6 @@ function LoggedPage(props) {
                     obj: call
                 })
                 console.log(`call.status ${call.status}`)
-                // if(call.status === 'rejected'){
-                //     const callHistory = {
-                //         ...curCall
-                //     }
-                //     delete callHistory.obj
-                //     console.log(`curCall`, curCall)
-                //     console.log(`callHistory`, callHistory)
-
-                //     setCallsHistory( callsHistory => [...callsHistory, callHistory] )
-                //     setCurCall(defCallStatus)
-                // }
                 
               });
 
@@ -170,6 +158,10 @@ function LoggedPage(props) {
 
     return (
         <div className="App">
+            <button onClick={() => {
+                localStorage.clear()
+                window.location.href = '/'
+            }} >Logout</button>
             <h1>Conversations Client Playground</h1>
             <div>
                 {curCall.obj && <CurrentCall 
