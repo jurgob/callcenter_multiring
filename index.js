@@ -54,7 +54,7 @@ const startTheCall = async (event, { logger, csClient } ) => {
 
   const conversation_id = convRes.data.id
   const user_id = event.body.user.id
-
+  const customer_phone_number = event.body.channel.from.number
   // await sleep(1000)
   logger.info('Step 2, ADD THE CUSTOMER LEG INTO THE CONVERSATION')
   const memberRes = await csClient({
@@ -76,13 +76,46 @@ const startTheCall = async (event, { logger, csClient } ) => {
           "media": {
               "audio": true
           }
-
       }
   })
+  // const member
   
   logger.info(`Step 3, INVITE ALL THE AGENT'S SDKS`)
-  const usernames = "boemo,jurgo"
+  const connected_agents = "boemo,jurgo"
+  const inviteAgents = connected_agents.split(',').map(async agent_name => {
+    return await csClient({
+      url: `${DATACENTER}/v0.3/conversations/${conversation_id}/members`,
+      method: "post",
+      data: {
+          state: "invited",
+          user: {
+            name: agent_name
+          },
+          channel: {
+            type: "app",
+            to: {
+              type: "app",
+              user: agent_name
+            },
+            from: {
+              type: "phone",
+              number:customer_phone_number
+            }
+          },
+          "media": {
+            "audio_settings": {
+              "enabled": true,
+              "earmuffed": true,
+              "muted": true
+            },
+            "audio": true
+          }
+      }
+    })
+  })
 
+  await Promise.all(inviteAgents)
+  logger.info(`ALL THE AGENTS FOLLOWING ARE RINGING`, connected_agents)
 
 } 
 
