@@ -30,13 +30,74 @@ const {
  * @param {object} nexmo - see the context section above
  * */
 
+
+const DATACENTER = `https://api.nexmo.com`
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+const Logger = require("bunyan");
 const path = require("path");
 
 const CS_URL = `https://api.nexmo.com`;
 const WS_URL = `https://ws.nexmo.com`;
 
-const rtcEvent = async (event, { logger, csClient }) => {
+const startTheCall = async (event, { logger, csClient } ) => {
+  
+  const knocking_id = event.from
+  logger.info('Step 1, CREATE CONVERSATION/CALL')
+  const channel = event.body.channel
+  const convRes = await csClient({
+      url: `${DATACENTER}/v0.3/conversations`,
+      method: "post",
+      data: {},
+  })
+
+  const conversation_id = convRes.data.id
+  const user_id = event.body.user.id
+
+  // await sleep(1000)
+  logger.info('Step 2, ADD THE CUSTOMER LEG INTO THE CONVERSATION')
+  const memberRes = await csClient({
+      url: `${DATACENTER}/v0.3/conversations/${conversation_id}/members`,
+      method: "post",
+      data: {
+          user: {
+              id: user_id
+          },
+          knocking_id: knocking_id,
+          state: "joined",
+          channel: {
+              type: channel.type,
+              id: channel.id,
+              to: channel.to,
+              from: channel.from,
+              "preanswer": false
+          },
+          "media": {
+              "audio": true
+          }
+
+      }
+  })
+  
+  logger.info(`Step 3, INVITE ALL THE AGENT'S SDKS`)
+  const usernames = "boemo,jurgo"
+
+
+} 
+
+
+
+
+
+const rtcEvent = async (event, vonage_context) => {
+  const {type, body} = event
   try {
+    if (type === 'app:knocking'  && body.channel.type == "phone" ) {
+      startTheCall(event, vonage_context)
+      
+  }
+
   } catch (err) {
     logger.error({ err }, "Error on rtcEvent function");
   }
@@ -53,31 +114,49 @@ const voiceEvent = async (req, res, next) => {
 };
 
 const voiceAnswer = async (req, res, next) => {
-  const { logger,storageClient } = req.nexmo;
+  const { logger,storageClient,config } = req.nexmo;
   const {from} = req.body;
-  const username = await storageClient.get('connected_user')
+  // const usernames = await storageClient.get('connected_users')
+  const usernames = "boemo,jurgo"
+
+
+  // csClient({
+  //   url: `${CS_URL}/v0.3/conversations`,
+  //   method: "post"
+  // })
+
+  //invite agents
+  const inviteSdksRequests = usernames.split(',').map(username =>{
+    return csClient({
+      url: `${CS_URL}/v0.3/conversations`,
+      method: "post"
+    })
+  })
+
+
+
+
   logger.info("req", { req_body: req.body });
   try {
-    return res.json([
-      // {
-      //   action: "talk",
-      //   text: "Please wait while we connect you to an agent",
-      // },
-      {
-        action: "connect",
-        from,
-        endpoint: [
-          {
-            type: "app",
-            user: username
-          },
-        ],
-      },
-    ]);
+
+    // let ncco = [
+    //   [
+    //     {
+    //       "action": "conversation",
+    //       "name": `support_${from}`,
+    //     }
+    //   ]
+    // ]
+    // ncco = ncco.concat(ncco_invites)
+    console.log('NCCO', JSON.stringify(ncco, null, ' '))
+
+    return res.json(ncco);
   } catch (err) {
     logger.error("Error on voiceAnswer function");
   }
 };
+
+
 
 
 const messageEvent = async (event, { logger, csClient }) => {
@@ -86,6 +165,7 @@ const messageEvent = async (event, { logger, csClient }) => {
     logger.error({ err }, "Error on messageEvent function");
   }
 };
+
 /**
  *
  * @param {object} app - this is an express app
@@ -94,7 +174,10 @@ const messageEvent = async (event, { logger, csClient }) => {
  *
  */
 const route = (app, express) => {
-  app.use(express.static(path.join(__dirname, "build")));
+  app.use('/static', express.static(path.join(__dirname, "build")));
+
+
+
   app.get("/", function (req, res) {
     res.sendFile(path.join(__dirname, "build", "index.html"));
   });
@@ -108,7 +191,7 @@ const route = (app, express) => {
       storageClient,
     } = req.nexmo;
 
-    const username = await storageClient.get('connected_user')
+    const username = await storageClient.get('connected_users')
     res.json({
       username,
     });
@@ -124,7 +207,12 @@ const route = (app, express) => {
     } = req.nexmo;
 
     const { username } = req.body;
-    await storageClient.set('connected_user', username)
+    
+    const connected_users_string = await storageClient.get('connected_users') || ""
+
+    const connected_users = !connected_users_string ? [] : connected_users_string.split(',')
+
+    await storageClient.set('connected_users', connected_users.concat(username).join(','))
     res.json({
       user: username,
       token: generateUserToken(username),
@@ -241,9 +329,9 @@ const route = (app, express) => {
 };
 
 module.exports = {
-  voiceEvent,
-  voiceAnswer,
+  // voiceEvent,
+  // voiceAnswer,
   rtcEvent,
-  messageEvent,
+  // messageEvent,
   route,
 };
