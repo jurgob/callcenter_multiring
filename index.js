@@ -41,15 +41,23 @@ const path = require("path");
 const CS_URL = `https://api.nexmo.com`;
 const WS_URL = `https://ws.nexmo.com`;
 
-const startTheCall = async (event, { logger, csClient } ) => {
-  
+const startTheCall = async (event, { logger, csClient,storageClient } ) => {
+  const connected_agents = "boemo,jurgo"
   const knocking_id = event.from
   logger.info('Step 1, CREATE CONVERSATION/CALL')
   const channel = event.body.channel
   const convRes = await csClient({
       url: `${DATACENTER}/v0.3/conversations`,
       method: "post",
-      data: {},
+      data: {
+        "properties": {
+          "ttl": 172800,
+          custom_data: {
+            ringed_agents: connected_agents
+          }
+        },
+        
+      },
   })
 
   const conversation_id = convRes.data.id
@@ -81,9 +89,8 @@ const startTheCall = async (event, { logger, csClient } ) => {
   // const member
   
   logger.info(`Step 3, INVITE ALL THE AGENT'S SDKS`)
-  const connected_agents = "boemo,jurgo"
   const inviteAgents = connected_agents.split(',').map(async agent_name => {
-    return await csClient({
+    const agentMemberRes = await csClient({
       url: `${DATACENTER}/v0.3/conversations/${conversation_id}/members`,
       method: "post",
       data: {
@@ -112,92 +119,72 @@ const startTheCall = async (event, { logger, csClient } ) => {
           }
       }
     })
+
+    return {
+      name: agent_name,
+      member_id: agentMemberRes.data.id
+    }
   })
 
-  await Promise.all(inviteAgents)
+  const membersIds = await Promise.all(inviteAgents)
   logger.info(`ALL THE AGENTS FOLLOWING ARE RINGING`, connected_agents)
+  const agentsMembersIds = membersIds.reduce((acc,cur) => {
+    acc[cur.name] =cur.member_id 
+    return acc
+  }, {})
 
+  // await csClient
+
+  logger.info(`agentsMembersId`, agentsMembersIds)
+  storageClient.set(`${conversation_id}_agents_memberids`, JSON.stringify(agentsMembersIds))
+  
 } 
 
 
+const hangUpOtherAgents = async (event, { logger, csClient,storageClient } ) => {
+  const conversation_id = event.conversation_id
+  const agentsMembersIdsString = await storageClient.get(`${conversation_id}_agents_memberids`)
 
+  const agentsMembersIds = JSON.parse(agentsMembersIdsString)
+  logger.info({
+    conversation_id,
+    agentsMembersIdsString,
+    agentsMembersIds
+  }, `agentsMembersIds to hangup`)
+
+
+  const joinedAgentName = event.body.user.name
+  Object.keys(agentsMembersIds).filter(agentName => agentName !== joinedAgentName).forEach(agentName => {
+    const member_id = agentsMembersIds[agentName]
+    csClient({
+      url: `${DATACENTER}/v0.3/conversations/${conversation_id}/members/${member_id}`,
+      method: "patch",
+      data: {
+        state: "left",
+        reason: {
+          code: "111",
+          text: "another operator answered the call"
+        }
+      }
+    }).catch(err => logger.info(err))  
+  })
+}
 
 
 const rtcEvent = async (event, vonage_context) => {
   const {type, body} = event
   try {
     if (type === 'app:knocking'  && body.channel.type == "phone" ) {
-      startTheCall(event, vonage_context)
-      
-  }
+      startTheCall(event, vonage_context)  
+    }else if(type === 'member:joined' && body.channel.type == "app" ) {
+      hangUpOtherAgents(event, vonage_context)
+    }
 
   } catch (err) {
     logger.error({ err }, "Error on rtcEvent function");
   }
 };
 
-const voiceEvent = async (req, res, next) => {
-  const { logger } = req.nexmo;
-  try {
-    logger.info("event", { event: req.body });
-    res.json({});
-  } catch (err) {
-    logger.error("Error on voiceEvent function");
-  }
-};
-
-const voiceAnswer = async (req, res, next) => {
-  const { logger,storageClient,config } = req.nexmo;
-  const {from} = req.body;
-  // const usernames = await storageClient.get('connected_users')
-  const usernames = "boemo,jurgo"
-
-
-  // csClient({
-  //   url: `${CS_URL}/v0.3/conversations`,
-  //   method: "post"
-  // })
-
-  //invite agents
-  const inviteSdksRequests = usernames.split(',').map(username =>{
-    return csClient({
-      url: `${CS_URL}/v0.3/conversations`,
-      method: "post"
-    })
-  })
-
-
-
-
-  logger.info("req", { req_body: req.body });
-  try {
-
-    // let ncco = [
-    //   [
-    //     {
-    //       "action": "conversation",
-    //       "name": `support_${from}`,
-    //     }
-    //   ]
-    // ]
-    // ncco = ncco.concat(ncco_invites)
-    console.log('NCCO', JSON.stringify(ncco, null, ' '))
-
-    return res.json(ncco);
-  } catch (err) {
-    logger.error("Error on voiceAnswer function");
-  }
-};
-
-
-
-
-const messageEvent = async (event, { logger, csClient }) => {
-  try {
-  } catch (err) {
-    logger.error({ err }, "Error on messageEvent function");
-  }
-};
 
 /**
  *
@@ -362,9 +349,6 @@ const route = (app, express) => {
 };
 
 module.exports = {
-  // voiceEvent,
-  // voiceAnswer,
   rtcEvent,
-  // messageEvent,
   route,
 };
