@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect,useRef } from 'react';
 
 // import CSClient from '../utils/csClient'
 // import FormCreateConversation from '../components/FormCreateConversation'
@@ -11,13 +11,14 @@ import useLocalStorage from "use-local-storage";
 
 import NexmoClient from "nexmo-client";
 
+
 const nexmoClient = new NexmoClient({ debug: false });
 
 function  CallsHistory({calls}){
     return (
         <div>
             {calls && calls.map(({status, direction,from}, idx) => (
-                <div key={idx} >
+                <div style={{display: "inline-block", padding: "5px", margin: "3px", border: "1px solid #999", backgroundColor: "#dfdfdf", borderRadius: "8px"  }}  key={idx} >
                     <div>status: {status}</div>
                     <div>direction: {direction}</div>
                     <div>from: {from}</div>
@@ -45,7 +46,40 @@ function CurrentCall({status, direction,from, onReject,onAnswer,onHangUp}){
 }
 
 
-// const csClient = CSClient()
+function Call(member, from){
+    let statusCallbak = () => {}
+    const call = {
+        direction: "outbound",
+        status: "created",
+        from: from,
+        hangUp: async () => {
+            member.conversation.media.disable()
+        },
+        reject: async () => {
+            member.conversation.leave({
+                reason_code:"111",
+                reason_text:"call refused"
+            })
+        },
+        answer: async () => {
+            await member.conversation.join()
+            member.conversation.media.enable({
+                autoPlayAudio: true
+            })
+        },
+        onCallStatusChange: (statusCallbakFn) => { statusCallbak = statusCallbakFn }
+    }
+
+    member.conversation.on('leg:status:update', (memberEvent, event) => {
+        const status = event.body.status
+        if( member.user.name === memberEvent.userName) {
+            call.status = status
+            statusCallbak(status)
+        }
+    })
+
+    return call
+}
 
 const defCallStatus = {
     status: "",
@@ -57,21 +91,11 @@ const defCallStatus = {
 function LoggedPage(props) {
     const [callsHistory, setCallsHistory]= useLocalStorage("calls_history", [])
     const [curCall, setCurCall]= useState(defCallStatus)
-    // const [curCallStatus, setCurCallStatus]= useState("")
-    // const [callHistory, setCallHistory] = useState([])
+    const curCallRef = useRef(null)
 
     const [token, setToken]= useState("")
     const [eventsHistory, setEvents] = useState([])
-    // const [myConversationsState, setMyConversationsState] = useState([])
-    // const [conversationsEvents, setConversationsEvents] = useState({})
 
-    // const [audioState, setAudioState] = useState({
-    //     audioSrcObject: null,
-    //     peerConnection: null
-    // })
-
-
-    //executedon login success
     useEffect(() => {
 
 
@@ -83,7 +107,6 @@ function LoggedPage(props) {
 
         console.log(` ->->->-> useEffect init csClient token: `, props.loginData?.token)
 
-
         const initCSClient = async () => {
             console.log(` ++++ initialize createCSClient`)
             const { token, cs_url, ws_url } = props.loginData
@@ -91,31 +114,55 @@ function LoggedPage(props) {
             window.nexmoClient = nexmoClient
             window.nexmoApp = nexmoApp
 
-            nexmoApp.on('member:call', (member, call) => {
-                window.call = call
-                call.conversation.on("member:left", call.conversation.id, (from, event) => {
-                    console.log(`conv ${call.conversation.id} event: `, from, event)
-                })
-                // setCurCallStatus(call.status)
-                setCurCall({
-                    from: call.from,
-                    status: call.status,
-                    direction: call.direction,
-                    obj:call
-                })
-            })
+            nexmoApp.on('member:invited', (member, event) => {
+                console.log(`member`, member, `event`, event)
+                console.log(`nexmoApp.me.name`, nexmoApp.me.name)
+                console.log(`event.body.user.name`, event.body.user.name)
+                console.log(`event.body.media.audio`, event.body?.media?.audio)
+                console.log(`event.body?.channel?.from?.number`, event.body?.channel?.from?.number)
+                if(nexmoApp.me.name === event.body.user.name && event.body?.media?.audio == true){
+                    window.conversation = member.conversation
+                    console.log(`yollo`)
+                   
+                    window.member = member
 
-            nexmoApp.on("call:status:changed",(call) => {
-                // setCurCallStatus(call.status)
-                setCurCall({
-                    from: call.from,
-                    status: call.status,
-                    direction: call.direction,
-                    obj: call
-                })
-                console.log(`call.status ${call.status}`)
-                
-              });
+                    const call = Call(member, event.body?.channel?.from?.number)
+                    call.onCallStatusChange(status => {
+                        console.log(`call.onCallStatusChange`, status)
+                        
+                        if(status !== `completed`) {
+                            setCurCall(callInfo => ({
+                                ...callInfo,
+                                status
+                            }))
+                        }else {
+                            
+                            setCallsHistory( callsHistory => [
+                                ...callsHistory, 
+                                {   
+                                    direction: call.direction,
+                                    from: call.from,
+                                    status, 
+                                    terminated_at: Date.now()
+                                }
+                            ])
+                            setCurCall(defCallStatus)
+                        }
+
+                        
+                    })
+
+                    curCallRef.current = call
+                    setCurCall({
+                        from: call.from,
+                        status: call.status,
+                        direction: call.direction,
+                    })
+                    
+
+
+                }
+            })
 
         }
 
@@ -129,7 +176,6 @@ function LoggedPage(props) {
                 type: packet.data[0],
                 ...packet.data[1]
               };
-              console.log(`socket event`, clientEvent)
               setEvents(eventsHistory => [...eventsHistory, clientEvent])
             });
           }
@@ -139,22 +185,22 @@ function LoggedPage(props) {
     }, [props.loginData?.token])
     
     //executed on current call status change
-    useEffect(() => {
+    // useEffect(() => {
         
-         if(curCall?.status === 'rejected'){
-            const callHistory = {
-                ...curCall
-            }
-            delete callHistory.obj
-            console.log(`curCall`, curCall)
-            console.log(`callHistory`, callHistory)
+    //      if(curCall?.status === 'completed'){
+    //         const callHistory = {
+    //             ...curCall
+    //         }
+    //         delete callHistory.obj
+    //         console.log(`curCall`, curCall)
+    //         console.log(`callHistory`, callHistory)
 
-            setCallsHistory( callsHistory => [...callsHistory, callHistory] )
-            setCurCall(defCallStatus)
-        }
+    //         setCallsHistory( callsHistory => [...callsHistory, {...callHistory, terminated_at: Date.now()}] )
+    //         setCurCall(defCallStatus)
+    //     }
 
 
-    }, [curCall?.status])
+    // }, [curCall?.status])
 
     return (
         <div className="App">
@@ -164,21 +210,41 @@ function LoggedPage(props) {
             }} >Logout</button>
             <h1>Conversations Client Playground</h1>
             <div>
-                {curCall.obj && <CurrentCall 
-                    status={curCall.status} 
-                    direction={curCall.direction} 
-                    from={curCall.from}
-                    onReject={() => { curCall.obj.reject()  }} 
-                    onAnswer={() => { curCall.obj.answer()  }} 
-                    onHangUp={() => { curCall.obj.hangUp()  }} 
-                />}
-               
-                     
-                <EventsHistory
-                    eventsHistory={eventsHistory}
-                    onCleanHistoryClick={() => setEvents(() => [])}
-                />
-                {callsHistory.length > 0 &&  <CallsHistory calls={callsHistory} />}
+                <div style={{verticalAlign: "top"}} >
+                    <div style={{display: "inline-block", padding: "0px 5px ", marginRight: "15px", verticalAlign:"top"}}>
+                    <h2>Current Call</h2>
+                    {!curCallRef.current && <div>No active call</div>}
+                    {curCallRef.current && <CurrentCall 
+                        status={curCall.status} 
+                        direction={curCall.direction} 
+                        from={curCall.from}
+                        onReject={() => { curCallRef.current.reject()  }} 
+                        onAnswer={() => { curCallRef.current.answer()  }} 
+                        onHangUp={() => { curCallRef.current.hangUp()  }} 
+                    />}
+                    </div>
+                    <div style={{display: "inline-block",padding: "0px 5px 0px 15px", verticalAlign:"top", borderLeft: "1px solid #999"}} >
+                    <h2>Calls History</h2>
+                    {callsHistory.length > 0 && (
+                        <div>
+                           <CallsHistory calls={callsHistory} />
+                        </div>
+                    
+                        )}
+                </div>
+                </div>
+
+               {eventsHistory.length > 0 && (
+                   <div>
+                       <h2>Event History Debugger</h2>
+                       <EventsHistory
+                          eventsHistory={eventsHistory}
+                            onCleanHistoryClick={() => setEvents(() => [])}
+                        />
+                   </div>
+               )} 
+                
+                
             </div>
 
         </div>

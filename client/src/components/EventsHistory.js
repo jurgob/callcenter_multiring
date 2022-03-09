@@ -2,7 +2,6 @@
 const EventsHistory = ({ eventsHistory, onCleanHistoryClick }) => {
     return (
         <div>
-            <h2>History</h2>
             <div>
                 <button onClick={onCleanHistoryClick} >Clean History</button>
             </div>

@@ -32,6 +32,7 @@ const {
 
 
 const DATACENTER = `https://api.nexmo.com`
+const CONNECTED_USERS='boemo'
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -42,7 +43,8 @@ const CS_URL = `https://api.nexmo.com`;
 const WS_URL = `https://ws.nexmo.com`;
 
 const startTheCall = async (event, { logger, csClient,storageClient } ) => {
-  const connected_agents = "boemo,jurgo"
+  const connected_agents = await storageClient.get('connected_users') || ""
+  // const connected_agents = CONNECTED_USERS
   const knocking_id = event.from
   logger.info('Step 1, CREATE CONVERSATION/CALL')
   const channel = event.body.channel
@@ -64,7 +66,7 @@ const startTheCall = async (event, { logger, csClient,storageClient } ) => {
   const user_id = event.body.user.id
   const customer_phone_number = event.body.channel.from.number
   // await sleep(1000)
-  logger.info('Step 2, ADD THE CUSTOMER LEG INTO THE CONVERSATION')
+  logger.info(`Step 2, ADD THE CUSTOMER LEG INTO THE CONVERSATION ${conversation_id}`)
   const memberRes = await csClient({
       url: `${DATACENTER}/v0.3/conversations/${conversation_id}/members`,
       method: "post",
@@ -86,9 +88,8 @@ const startTheCall = async (event, { logger, csClient,storageClient } ) => {
           }
       }
   })
-  // const member
   
-  logger.info(`Step 3, INVITE ALL THE AGENT'S SDKS`)
+  logger.info(`Step 3, INVITE ALL THE AGENT'S SDKS ${connected_agents}`)
   const inviteAgents = connected_agents.split(',').map(async agent_name => {
     const agentMemberRes = await csClient({
       url: `${DATACENTER}/v0.3/conversations/${conversation_id}/members`,
