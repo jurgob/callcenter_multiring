@@ -181,17 +181,34 @@ const firstSdkPickUpTheCall = async (event, { logger, csClient,storageClient },c
 
 const cleanTheCallOnFirstLeave = async (event ,{ logger, csClient,storageClient },callStatus ) => {
   const conversation_id = callStatus.conv_id
+  const from = event.from
+  logger.info({conversation_id, from}, 'cleanTheCallOnFirstLeave')
   
-  await csClient({
-    url: `${DATACENTER}/v0.3/conversations/${conversation_id}/members/${callStatus.assigned_agent_memb_id}`,
-    method: "delete",
-  })
+  if(from === callStatus.customer_phone_memb_id)
+    await csClient({
+      url: `${DATACENTER}/v0.3/conversations/${conversation_id}/members/${callStatus.assigned_agent_memb_id}`,
+      method: "patch",
+      data: {
+        state: "left",
+        reason: {
+          code: "111",
+          text: "call terminated by the other end"
+        }
+      }
+    })
 
-  await csClient({
-    url: `${DATACENTER}/v0.3/conversations/${conversation_id}/members/${callStatus.customer_phone_memb_id}`,
-    method: "delete",
-  })
-
+  if(from === callStatus.assigned_agent_memb_id)
+    await csClient({
+      url: `${DATACENTER}/v0.3/conversations/${conversation_id}/members/${callStatus.customer_phone_memb_id}`,
+      method: "patch",
+      data: {
+        state: "left",
+        reason: {
+          code: "111",
+          text: "call terminated by the other end"
+        }
+      }
+    })
 
   await csClient({
     url: `${DATACENTER}/v0.3/conversations/${conversation_id}`,
@@ -223,7 +240,7 @@ const rtcEvent = async (event, vonage_context) => {
         vonage_context.storageClient.set(`call:${conversation_id}`, JSON.stringify(callStatus))
         
         firstSdkPickUpTheCall(event, vonage_context,callStatus)
-      }else if(type.includes(':hangup') && (from === callStatus.assigned_agent_memb_id || from === callStatus)  ){
+      }else if(type.includes(':hangup') && (from === callStatus.assigned_agent_memb_id || from === callStatus.customer_phone_memb_id)  ){
 
         const callStatusString = await vonage_context.storageClient.get(`call:${conversation_id}`)
         const callStatus = JSON.parse(callStatusString)
