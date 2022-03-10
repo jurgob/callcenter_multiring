@@ -32,7 +32,7 @@ const {
 
 
 const DATACENTER = `https://api.nexmo.com`
-const CONNECTED_USERS='boemo'
+const CONNECTED_USERS='boemo,jurgo'
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -43,15 +43,15 @@ const CS_URL = `https://api.nexmo.com`;
 const WS_URL = `https://ws.nexmo.com`;
 
 function CallStatus(props){
-  const {conv_id, ringed_agents_memb_ids, assigned_agent_memb_id}= props;
+  const {conv_id, ringed_agents_memb_ids, assigned_agent_memb_id, customer_phone_memb_id}= props;
   return {
     ...props
   }
 }
 
 const receivePhoneCall = async (event, { logger, csClient,storageClient } ) => {
-  const connected_agents = await storageClient.get('connected_users') || ""
-  // const connected_agents = CONNECTED_USERS
+  // const connected_agents = await storageClient.get('connected_users') || ""
+  const connected_agents = CONNECTED_USERS
   const knocking_id = event.from
   logger.info('Step 1, CREATE CONVERSATION/CALL')
   const channel = event.body.channel
@@ -144,7 +144,8 @@ const receivePhoneCall = async (event, { logger, csClient,storageClient } ) => {
   const callStatus = CallStatus({
     conv_id: conversation_id, 
     ringed_agents_memb_ids: Object.values(agentsMembersIds), 
-    assigned_agents_memb_id: null
+    assigned_agent_memb_id: null,
+    customer_phone_memb_id: memberRes.data.id
   })
   logger.info(`agentsMembersId`, agentsMembersIds)
   storageClient.set(`call:${conversation_id}`, JSON.stringify(callStatus))
@@ -152,17 +153,8 @@ const receivePhoneCall = async (event, { logger, csClient,storageClient } ) => {
 } 
 
 
-const firstSdkPickUpTheCall = async (event, { logger, csClient,storageClient } ) => {
+const firstSdkPickUpTheCall = async (event, { logger, csClient,storageClient },callStatus ) => {
   const conversation_id = event.conversation_id
-  //const agentsMembersIdsString = await storageClient.get(`${conversation_id}_agents_memberids`)
-  // const agentsMembersIds = JSON.parse(agentsMembersIdsString)
-  const callStatusString = await storageClient.get(`call:${conversation_id}`)
-  const callStatus = JSON.parse(callStatusString)
-  callStatus.assigned_agent_memb_id = event.body.member_id
-
-  //write it asyncronusly
-  storageClient.set(`call:${conversation_id}`, JSON.stringify(callStatus))
-
   logger.info({
     conversation_id,
     callStatus
@@ -187,22 +179,63 @@ const firstSdkPickUpTheCall = async (event, { logger, csClient,storageClient } )
   })
 }
 
-const cleanTheCallOnFirstLeave = async (event ,{ logger, csClient,storageClient } ) => {
+const cleanTheCallOnFirstLeave = async (event ,{ logger, csClient,storageClient },callStatus ) => {
+  const conversation_id = callStatus.conv_id
+  
+  await csClient({
+    url: `${DATACENTER}/v0.3/conversations/${conversation_id}/members/${callStatus.assigned_agent_memb_id}`,
+    method: "delete",
+  })
 
+  await csClient({
+    url: `${DATACENTER}/v0.3/conversations/${conversation_id}/members/${callStatus.customer_phone_memb_id}`,
+    method: "delete",
+  })
+
+
+  await csClient({
+    url: `${DATACENTER}/v0.3/conversations/${conversation_id}`,
+    method: "delete",
+  })
+    
 }
 
 
 const rtcEvent = async (event, vonage_context) => {
   const {type, body} = event
   try {
+
+
     if (type === 'app:knocking'  && body.channel.type == "phone" ) {
       receivePhoneCall(event, vonage_context)  
-    }else if(type === 'member:joined' && body.channel.type == "app" ) {
-      firstSdkPickUpTheCall(event, vonage_context)
+    }else if(['member:joined','rtc:hangup', 'sip:hangup'].includes(type) ){ 
+      const conversation_id = event.conversation_id
+      const from = event.from
+
+      const callStatusString = await vonage_context.storageClient.get(`call:${conversation_id}`) || "{}"
+      const callStatus = JSON.parse(callStatusString)
+
+      if(type === 'member:joined' && body.channel.type == "app" ) {
+      
+      
+        callStatus.assigned_agent_memb_id = body.member_id
+        //write it asyncronusly
+        vonage_context.storageClient.set(`call:${conversation_id}`, JSON.stringify(callStatus))
+        
+        firstSdkPickUpTheCall(event, vonage_context,callStatus)
+      }else if(type.includes(':hangup') && (from === callStatus.assigned_agent_memb_id || from === callStatus)  ){
+
+        const callStatusString = await vonage_context.storageClient.get(`call:${conversation_id}`)
+        const callStatus = JSON.parse(callStatusString)
+        cleanTheCallOnFirstLeave(event, vonage_context,callStatus)
+
+      }
+
     }
 
   } catch (err) {
-    logger.error({ err }, "Error on rtcEvent function");
+    console.log(err)
+    vonage_context.logger.error({type,  err }, "Error on rtcEvent function");
   }
 };
 
