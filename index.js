@@ -42,7 +42,14 @@ const path = require("path");
 const CS_URL = `https://api.nexmo.com`;
 const WS_URL = `https://ws.nexmo.com`;
 
-const startTheCall = async (event, { logger, csClient,storageClient } ) => {
+function CallStatus(props){
+  const {conv_id, ringed_agents_memb_ids, assigned_agent_memb_id}= props;
+  return {
+    ...props
+  }
+}
+
+const receivePhoneCall = async (event, { logger, csClient,storageClient } ) => {
   const connected_agents = await storageClient.get('connected_users') || ""
   // const connected_agents = CONNECTED_USERS
   const knocking_id = event.from
@@ -134,29 +141,38 @@ const startTheCall = async (event, { logger, csClient,storageClient } ) => {
     return acc
   }, {})
 
-  // await csClient
-
+  const callStatus = CallStatus({
+    conv_id: conversation_id, 
+    ringed_agents_memb_ids: Object.values(agentsMembersIds), 
+    assigned_agents_memb_id: null
+  })
   logger.info(`agentsMembersId`, agentsMembersIds)
-  storageClient.set(`${conversation_id}_agents_memberids`, JSON.stringify(agentsMembersIds))
+  storageClient.set(`call:${conversation_id}`, JSON.stringify(callStatus))
   
 } 
 
 
-const hangUpOtherAgents = async (event, { logger, csClient,storageClient } ) => {
+const firstSdkPickUpTheCall = async (event, { logger, csClient,storageClient } ) => {
   const conversation_id = event.conversation_id
-  const agentsMembersIdsString = await storageClient.get(`${conversation_id}_agents_memberids`)
+  //const agentsMembersIdsString = await storageClient.get(`${conversation_id}_agents_memberids`)
+  // const agentsMembersIds = JSON.parse(agentsMembersIdsString)
+  const callStatusString = await storageClient.get(`call:${conversation_id}`)
+  const callStatus = JSON.parse(callStatusString)
+  callStatus.assigned_agent_memb_id = event.body.member_id
 
-  const agentsMembersIds = JSON.parse(agentsMembersIdsString)
+  //write it asyncronusly
+  storageClient.set(`call:${conversation_id}`, JSON.stringify(callStatus))
+
   logger.info({
     conversation_id,
-    agentsMembersIdsString,
-    agentsMembersIds
+    callStatus
   }, `agentsMembersIds to hangup`)
 
 
   const joinedAgentName = event.body.user.name
-  Object.keys(agentsMembersIds).filter(agentName => agentName !== joinedAgentName).forEach(agentName => {
-    const member_id = agentsMembersIds[agentName]
+  // Object.keys(callStatus.ringed_agents_memb_ids).filter(agentName => agentName !== joinedAgentName).forEach(agentName => {
+    callStatus.ringed_agents_memb_ids.filter(mem_id => mem_id !== callStatus.assigned_agent_memb_id).forEach(member_id => {
+    // const member_id = agentsMembersIds[agentName]
     csClient({
       url: `${DATACENTER}/v0.3/conversations/${conversation_id}/members/${member_id}`,
       method: "patch",
@@ -171,14 +187,18 @@ const hangUpOtherAgents = async (event, { logger, csClient,storageClient } ) => 
   })
 }
 
+const cleanTheCallOnFirstLeave = async (event ,{ logger, csClient,storageClient } ) => {
+
+}
+
 
 const rtcEvent = async (event, vonage_context) => {
   const {type, body} = event
   try {
     if (type === 'app:knocking'  && body.channel.type == "phone" ) {
-      startTheCall(event, vonage_context)  
+      receivePhoneCall(event, vonage_context)  
     }else if(type === 'member:joined' && body.channel.type == "app" ) {
-      hangUpOtherAgents(event, vonage_context)
+      firstSdkPickUpTheCall(event, vonage_context)
     }
 
   } catch (err) {

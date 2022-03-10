@@ -69,12 +69,22 @@ function Call(member, from){
         },
         onCallStatusChange: (statusCallbakFn) => { statusCallbak = statusCallbakFn }
     }
+    function _setStatus(status){
+        call.status = status
+        statusCallbak(status)
+    }
 
-    member.conversation.on('leg:status:update', (memberEvent, event) => {
-        const status = event.body.status
+    member.conversation.on('leg:status:update', (memberEvent, event) => {     
         if( member.user.name === memberEvent.userName) {
-            call.status = status
-            statusCallbak(status)
+            _setStatus(event.body.status)
+        }
+    })
+
+    member.conversation.on('member:left', (memberEvent, event) => {
+        if( member.user.name === memberEvent.userName) {
+            statusCallbak('cancelled')
+            setTimeout(()=> statusCallbak('completed'), 500)
+            // completed
         }
     })
 
@@ -84,8 +94,7 @@ function Call(member, from){
 const defCallStatus = {
     status: "",
     from:"",
-    direction:"",
-    obj: null
+    direction:""
 }
 
 function LoggedPage(props) {
@@ -115,15 +124,15 @@ function LoggedPage(props) {
             window.nexmoApp = nexmoApp
 
             nexmoApp.on('member:invited', (member, event) => {
+                console.log(`!!!!!! member:invited !!!!!`)
                 console.log(`member`, member, `event`, event)
                 console.log(`nexmoApp.me.name`, nexmoApp.me.name)
                 console.log(`event.body.user.name`, event.body.user.name)
                 console.log(`event.body.media.audio`, event.body?.media?.audio)
                 console.log(`event.body?.channel?.from?.number`, event.body?.channel?.from?.number)
+                
                 if(nexmoApp.me.name === event.body.user.name && event.body?.media?.audio == true){
-                    window.conversation = member.conversation
-                    console.log(`yollo`)
-                   
+                    window.conversation = member.conversation                   
                     window.member = member
 
                     const call = Call(member, event.body?.channel?.from?.number)
@@ -146,6 +155,7 @@ function LoggedPage(props) {
                                     terminated_at: Date.now()
                                 }
                             ])
+                            curCallRef.current = null
                             setCurCall(defCallStatus)
                         }
 
@@ -183,24 +193,6 @@ function LoggedPage(props) {
         initCSClient()
 
     }, [props.loginData?.token])
-    
-    //executed on current call status change
-    // useEffect(() => {
-        
-    //      if(curCall?.status === 'completed'){
-    //         const callHistory = {
-    //             ...curCall
-    //         }
-    //         delete callHistory.obj
-    //         console.log(`curCall`, curCall)
-    //         console.log(`callHistory`, callHistory)
-
-    //         setCallsHistory( callsHistory => [...callsHistory, {...callHistory, terminated_at: Date.now()}] )
-    //         setCurCall(defCallStatus)
-    //     }
-
-
-    // }, [curCall?.status])
 
     return (
         <div className="App">
