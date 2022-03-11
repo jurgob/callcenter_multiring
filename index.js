@@ -43,10 +43,29 @@ const CS_URL = `https://api.nexmo.com`;
 const WS_URL = `https://ws.nexmo.com`;
 
 function CallStatus(props){
-  const {conv_id, ringed_agents_memb_ids, assigned_agent_memb_id, customer_phone_memb_id}= props;
+  
+  let {conv_id, ringed_agents_memb_ids, assigned_agent_memb_id, customer_phone_memb_id, status}= props;
+  if(!status)
+    status = 'created'
+  //status: created | ringing | answered | completed
   return {
     ...props
   }
+}
+
+async function  saveCall(storageClient, callStatus){
+  return await storageClient.set(`call:${callStatus.conv_id}`, JSON.stringify(callStatus))
+
+}
+
+async function loadCall(storageClient,conversation_id){
+  const callStatusString = await storageClient.get(`call:${conversation_id}`)
+  if(!callStatusString)
+    return undefined
+  
+    const callStatus = JSON.parse(callStatusString)
+  return CallStatus(callStatus)
+
 }
 
 const receivePhoneCall = async (event, { logger, csClient,storageClient } ) => {
@@ -142,6 +161,7 @@ const receivePhoneCall = async (event, { logger, csClient,storageClient } ) => {
   }, {})
 
   const callStatus = CallStatus({
+    status: "ringing",
     conv_id: conversation_id, 
     ringed_agents_memb_ids: Object.values(agentsMembersIds), 
     assigned_agent_memb_id: null,
@@ -179,7 +199,7 @@ const firstSdkPickUpTheCall = async (event, { logger, csClient,storageClient },c
   })
 }
 
-const cleanTheCallOnFirstLeave = async (event ,{ logger, csClient,storageClient },callStatus ) => {
+const cleanTheCallOnFirstLeave = async (event ,{ logger, csClient },callStatus ) => {
   const conversation_id = callStatus.conv_id
   const from = event.from
   logger.info({conversation_id, from}, 'cleanTheCallOnFirstLeave')
@@ -217,34 +237,42 @@ const cleanTheCallOnFirstLeave = async (event ,{ logger, csClient,storageClient 
     
 }
 
-
 const rtcEvent = async (event, vonage_context) => {
   const {type, body} = event
   try {
-
+    const {storageClient, logger} = vonage_context
 
     if (type === 'app:knocking'  && body.channel.type == "phone" ) {
+      logger.info('CALL-STEP 1 create the call, ring agents')
       receivePhoneCall(event, vonage_context)  
     }else if(['member:joined','rtc:hangup', 'sip:hangup'].includes(type) ){ 
       const conversation_id = event.conversation_id
       const from = event.from
 
-      const callStatusString = await vonage_context.storageClient.get(`call:${conversation_id}`) || "{}"
-      const callStatus = JSON.parse(callStatusString)
+      const callStatus = await loadCall(storageClient, conversation_id)
 
       if(type === 'member:joined' && body.channel.type == "app" ) {
-      
+        logger.info({event, callStatus}, 'CALL-STEP 2 join first agent picking up the call, hang up others')
       
         callStatus.assigned_agent_memb_id = body.member_id
-        //write it asyncronusly
-        vonage_context.storageClient.set(`call:${conversation_id}`, JSON.stringify(callStatus))
+        callStatus.status = 'answered'
+        //write it asyncronusly as we are not using await
+        saveCall(storageClient,callStatus)
         
         firstSdkPickUpTheCall(event, vonage_context,callStatus)
-      }else if(type.includes(':hangup') && (from === callStatus.assigned_agent_memb_id || from === callStatus.customer_phone_memb_id)  ){
 
-        const callStatusString = await vonage_context.storageClient.get(`call:${conversation_id}`)
-        const callStatus = JSON.parse(callStatusString)
-        cleanTheCallOnFirstLeave(event, vonage_context,callStatus)
+      }else if(type.includes(':hangup') && (from === callStatus.assigned_agent_memb_id || from === callStatus.customer_phone_memb_id)  ){
+        
+        if(callStatus.status == 'answered'){
+          logger.info({event, callStatus},'CALL-STEP 3 cancel the call once the agent or the customer hang up')
+
+          callStatus.status = 'completed'
+          //write it asyncronusly as we are not using await
+          await saveCall(storageClient,callStatus)
+          cleanTheCallOnFirstLeave(event, vonage_context,callStatus)  
+        }
+
+        // cleanTheCallOnFirstLeave(event, vonage_context,callStatus)
 
       }
 
