@@ -4,7 +4,7 @@
 IN this example, we are implementing a contact center where a customer is calling your LVN, and a number of agent connected via browser are gonna receive the call. 
 The first to repond is gonna pick the call, the other once are gonna be hanged up. 
 
-look DESIGN.md for a high level explaination. 
+look [the design](DESIGN.md) for a high level explaination. 
 
 
 
