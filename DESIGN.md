@@ -1,4 +1,4 @@
-<h2>The scenario<h1>
+<h2>The scenario<h2>
 On customer is calling and LVN, all the agents logged via browser receive the call, the first one to pick the call make everyone else to hangup. 
 
 When the agent or the customer hangup, the entire call is hanged up. 
