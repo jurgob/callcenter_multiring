@@ -37,3 +37,13 @@ cd PRJ_DIR
 cd client
 npm start
 ```
+
+more notes: 
+more examples like this one: https://github.com/jurgob/conversation-api-function (examples section)
+about this tool: https://casual-programming.com/an-easy-way-to-try-vonage-communication-api-locally/
+internal cs docs: https://jurgob.github.io/conversation-service-docs/#/openapiuiv3
+
+
+
+
+
