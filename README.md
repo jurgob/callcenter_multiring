@@ -6,6 +6,10 @@ The first to repond is gonna pick the call, the other once are gonna be hanged u
 
 look [the design](DESIGN.md) for a high level explaination. 
 
+for looking the backend part start lookin [here](https://github.com/jurgob/callcenter_multiring/blob/main/index.js#L240)
+
+for the frontend part, there's a simple react app, start look [here](https://github.com/jurgob/callcenter_multiring/blob/main/client/src/containers/LoggedPage.js#L126)
+
 
 
 #install prerequisite
