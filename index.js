@@ -236,7 +236,7 @@ const cleanTheCallOnFirstLeave = async (event ,{ logger, csClient },callStatus )
   })
     
 }
-
+//This function is called every time you get a conversation APi event. here is the list of the events you can get: https://jurgob.github.io/conversation-service-docs/#/openapiui  .Without this tool, to receive those event you should set the rtc->webhook->rtc_event capability in your vonage application (https://developer.nexmo.com/api/application.v2)
 const rtcEvent = async (event, vonage_context) => {
   const {type, body} = event
   try {
