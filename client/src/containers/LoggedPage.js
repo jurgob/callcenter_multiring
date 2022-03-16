@@ -62,10 +62,12 @@ function Call(member, from){
             })
         },
         answer: async () => {
+            console.log(`ANSER CALL`, Date.now())
             await member.conversation.join()
-            member.conversation.media.enable({
+            await member.conversation.media.enable({
                 autoPlayAudio: true
             })
+            console.log(`CALL ESTABLISHED`, Date.now())
         },
         onCallStatusChange: (statusCallbakFn) => { statusCallbak = statusCallbakFn }
     }
