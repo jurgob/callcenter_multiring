@@ -12,7 +12,7 @@ import useLocalStorage from "use-local-storage";
 import NexmoClient from "nexmo-client";
 
 
-const nexmoClient = new NexmoClient({ debug: false });
+const nexmoClient = new NexmoClient({ debug: true, enableInboundOffer:true });
 
 function  CallsHistory({calls}){
     return (
@@ -46,12 +46,13 @@ function CurrentCall({status, direction,from, onReject,onAnswer,onHangUp}){
 }
 
 
-function Call(member, from){
+function Call(member, nxmCall){
+
     let statusCallbak = () => {}
     const call = {
         direction: "outbound",
         status: "created",
-        from: from,
+        from: nxmCall.from,
         hangUp: async () => {
             member.conversation.media.disable()
         },
@@ -63,10 +64,7 @@ function Call(member, from){
         },
         answer: async () => {
             console.log(`ANSER CALL`, Date.now())
-            await member.conversation.join()
-            await member.conversation.media.enable({
-                autoPlayAudio: true
-            })
+            await nxmCall.answer()
             console.log(`CALL ESTABLISHED`, Date.now())
         },
         onCallStatusChange: (statusCallbakFn) => { statusCallbak = statusCallbakFn }
@@ -121,76 +119,48 @@ function LoggedPage(props) {
         const initCSClient = async () => {
             console.log(` ++++ initialize createCSClient`)
             const { token, cs_url, ws_url } = props.loginData
-            const nexmoApp = await nexmoClient.login(token)
+            const nexmoApp = await nexmoClient.createSession(token)
             window.nexmoClient = nexmoClient
             window.nexmoApp = nexmoApp
 
-            nexmoApp.on('member:invited', (member, event) => {
-                console.log(`!!!!!! member:invited !!!!!`)
-                console.log(`member`, member, `event`, event)
-                console.log(`nexmoApp.me.name`, nexmoApp.me.name)
-                console.log(`event.body.user.name`, event.body.user.name)
-                console.log(`event.body.media.audio`, event.body?.media?.audio)
-                console.log(`event.body?.channel?.from?.number`, event.body?.channel?.from?.number)
-                
-                if(nexmoApp.me.name === event.body.user.name && event.body?.media?.audio == true){
-                    window.conversation = member.conversation                   
-                    window.member = member
-
-                    const call = Call(member, event.body?.channel?.from?.number)
-                    call.onCallStatusChange(status => {
-                        console.log(`call.onCallStatusChange`, status)
-                        
-                        if(status !== `completed`) {
-                            setCurCall(callInfo => ({
-                                ...callInfo,
-                                status
-                            }))
-                        }else {
-                            
-                            setCallsHistory( callsHistory => [
-                                ...callsHistory, 
-                                {   
-                                    direction: call.direction,
-                                    from: call.from,
-                                    status, 
-                                    terminated_at: Date.now()
-                                }
-                            ])
-                            curCallRef.current = null
-                            setCurCall(defCallStatus)
-                        }
-
-                        
-                    })
-
-                    curCallRef.current = call
-                    setCurCall({
-                        from: call.from,
-                        status: call.status,
-                        direction: call.direction,
-                    })
+            nexmoApp.on("member:call", (member, nxmCall) => {
+                console.log("member:call [member]", member)
+                console.log("member:call [call]", nxmCall)
+                const call = Call(member, nxmCall)
+                call.onCallStatusChange(status => {
+                    console.log(`call.onCallStatusChange`, status)
                     
+                    if(status !== `completed`) {
+                        setCurCall(callInfo => ({
+                            ...callInfo,
+                            status
+                        }))
+                    }else {
+                        
+                        setCallsHistory( callsHistory => [
+                            ...callsHistory, 
+                            {   
+                                direction: call.direction,
+                                from: call.from,
+                                status, 
+                                terminated_at: Date.now()
+                            }
+                        ])
+                        curCallRef.current = null
+                        setCurCall(defCallStatus)
+                    }
 
+                    
+                })
 
-                }
+                curCallRef.current = call
+                setCurCall({
+                    from: call.from,
+                    status: call.status,
+                    direction: call.direction,
+                })        
             })
-
         }
-
-        
-
-        if (nexmoClient.connection.io) {
-            nexmoClient.connection.io.on("packet", async (packet) => {
-              if (packet.type !== 2) return;
-              if (packet.data[0] === "echo") return;
-              const clientEvent = {
-                type: packet.data[0],
-                ...packet.data[1]
-              };
-              setEvents(eventsHistory => [...eventsHistory, clientEvent])
-            });
-          }
 
         initCSClient()
 

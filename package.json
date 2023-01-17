@@ -14,7 +14,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "conversation-api-function": "0.0.15"
+    "conversation-api-function": "0.0.16"
   },
   "devDependencies": {
     "bunyan": "^1.8.15"
