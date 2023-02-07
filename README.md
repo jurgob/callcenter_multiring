@@ -13,6 +13,7 @@ for the frontend part, there's a simple react app, start look [here](https://git
 
 
 #install prerequisite
+
 be sure you have node `v14.15.0` installed. 
 
 if you have `brew` installed, just run ` brew install nvm` , if not follow this: https://github.com/nvm-sh/nvm
@@ -22,10 +23,12 @@ then `nvm install 14.15.0`.
 
 
 #install
+
 clone this repo
 `cd callcenter_multiring`
 
 `npm install`
+
 
 #run it:
 
