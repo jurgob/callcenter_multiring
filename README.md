@@ -12,7 +12,7 @@ for the frontend part, there's a simple react app, start look [here](https://git
 
 
 
-#install prerequisite
+# install prerequisite
 
 be sure you have node `v14.15.0` installed. 
 
@@ -22,7 +22,7 @@ once you have nvm run
 then `nvm install 14.15.0`. 
 
 
-#install
+# install
 
 clone this repo
 `cd callcenter_multiring`
@@ -30,7 +30,7 @@ clone this repo
 `npm install`
 
 
-#run it:
+# run it:
 
 the server: 
 ```
