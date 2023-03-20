@@ -32,7 +32,7 @@ const {
 
 
 const DATACENTER = `https://api.nexmo.com`
-const CONNECTED_USERS='boemo,jurgo'
+const CONNECTED_USERS='lalo,lala'
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -74,6 +74,7 @@ const receivePhoneCall = async (event, { logger, csClient,storageClient } ) => {
   const knocking_id = event.from
   logger.info('Step 1, CREATE CONVERSATION/CALL')
   const channel = event.body.channel
+  const customerLegId = channel.id
   const convRes = await csClient({
       url: `${DATACENTER}/v0.3/conversations`,
       method: "post",
@@ -87,6 +88,24 @@ const receivePhoneCall = async (event, { logger, csClient,storageClient } ) => {
         
       },
   })
+  // add mp3 to the customer leg
+
+  try{
+    const mp3add = await csClient({
+      url: `${DATACENTER}/v0.3/legs/${customerLegId}/stream`,
+      method: "post",
+      data: {
+        "stream_url":["https://file-examples.com/storage/fef1706276640fa2f99a5a4/2017/11/file_example_MP3_700KB.mp3"],
+        "level":0,
+        "loop":0
+      },
+    })
+    logger.info(`ADD MP3 AS RINGING TONE ${mp3add.status}`)
+  } catch(e)
+  {
+    console.log(e)
+  }
+
 
   const conversation_id = convRes.data.id
   const user_id = event.body.user.id
@@ -165,7 +184,8 @@ const receivePhoneCall = async (event, { logger, csClient,storageClient } ) => {
     conv_id: conversation_id, 
     ringed_agents_memb_ids: Object.values(agentsMembersIds), 
     assigned_agent_memb_id: null,
-    customer_phone_memb_id: memberRes.data.id
+    customer_phone_memb_id: memberRes.data.id,
+    customer_leg_id: customerLegId
   })
   logger.info(`agentsMembersId`, agentsMembersIds)
   storageClient.set(`call:${conversation_id}`, JSON.stringify(callStatus))
@@ -197,6 +217,14 @@ const firstSdkPickUpTheCall = async (event, { logger, csClient,storageClient },c
       }
     }).catch(err => logger.info(err))  
   })
+
+// Stop mp3 on the customer leg
+ const mp3Stop = await csClient({
+    url: `${DATACENTER}/v0.3/legs/${callStatus.customer_leg_id}/stream`,
+    method: "delete",
+    data: {},
+  })
+  logger.info(`STOP MP3 AS RINGING TONE ${mp3Stop.data}`)
 }
 
 const cleanTheCallOnFirstLeave = async (event ,{ logger, csClient },callStatus ) => {
