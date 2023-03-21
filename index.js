@@ -32,7 +32,7 @@ const {
 
 
 const DATACENTER = `https://api.nexmo.com`
-const CONNECTED_USERS='lalo,lala'
+const CONNECTED_USERS='lalo,lala,lili'
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -74,7 +74,8 @@ const receivePhoneCall = async (event, { logger, csClient,storageClient } ) => {
   const knocking_id = event.from
   logger.info('Step 1, CREATE CONVERSATION/CALL')
   const channel = event.body.channel
-  const customerLegId = channel.id
+  const customer_leg_id = channel.id
+  const customer_phone_number = channel.from.number
   const convRes = await csClient({
       url: `${DATACENTER}/v0.3/conversations`,
       method: "post",
@@ -88,28 +89,9 @@ const receivePhoneCall = async (event, { logger, csClient,storageClient } ) => {
         
       },
   })
-  // add mp3 to the customer leg
-
-  try{
-    const mp3add = await csClient({
-      url: `${DATACENTER}/v0.3/legs/${customerLegId}/stream`,
-      method: "post",
-      data: {
-        "stream_url":["https://file-examples.com/storage/fef1706276640fa2f99a5a4/2017/11/file_example_MP3_700KB.mp3"],
-        "level":0,
-        "loop":0
-      },
-    })
-    logger.info(`ADD MP3 AS RINGING TONE ${mp3add.status}`)
-  } catch(e)
-  {
-    console.log(e)
-  }
-
 
   const conversation_id = convRes.data.id
   const user_id = event.body.user.id
-  const customer_phone_number = event.body.channel.from.number
   // await sleep(1000)
   logger.info(`Step 2, ADD THE CUSTOMER LEG INTO THE CONVERSATION ${conversation_id}`)
   const memberRes = await csClient({
@@ -133,9 +115,17 @@ const receivePhoneCall = async (event, { logger, csClient,storageClient } ) => {
           }
       }
   })
+  const customer_phone_memb_id = memberRes.data.id
   
   logger.info(`Step 3, INVITE ALL THE AGENT'S SDKS ${connected_agents}`)
-  const inviteAgents = connected_agents.split(',').map(async agent_name => {
+  
+  const connectedAgents = connected_agents.split(',')
+  inviteAgents(connectedAgents, csClient, customer_leg_id, customer_phone_number, conversation_id, logger, customer_phone_memb_id, storageClient)
+} 
+//pass the umber from the client if has customer_phone_number, storageClient, 
+const inviteAgents = async (connected_agents, csClient, customer_leg_id, customer_phone_number, conversation_id, logger, customer_phone_memb_id, storageClient ) =>{
+try{
+  const agents = await connected_agents.map(async agent_name => {
     const agentMemberRes = await csClient({
       url: `${DATACENTER}/v0.3/conversations/${conversation_id}/members`,
       method: "post",
@@ -152,7 +142,7 @@ const receivePhoneCall = async (event, { logger, csClient,storageClient } ) => {
             },
             from: {
               type: "phone",
-              number:customer_phone_number
+              number: customer_phone_number
             }
           },
           "media": {
@@ -172,25 +162,47 @@ const receivePhoneCall = async (event, { logger, csClient,storageClient } ) => {
     }
   })
 
-  const membersIds = await Promise.all(inviteAgents)
+
+  const membersIds = await Promise.all(agents)
+  console.log(membersIds, "ELISA10")
+
   logger.info(`ALL THE AGENTS FOLLOWING ARE RINGING`, connected_agents)
   const agentsMembersIds = membersIds.reduce((acc,cur) => {
     acc[cur.name] =cur.member_id 
     return acc
   }, {})
+  console.log(agentsMembersIds,"ELISA8")
+
+  // add mp3 to the customer leg
+
+    const mp3add = await csClient({
+      url: `${DATACENTER}/v0.3/legs/${customer_leg_id}/stream`,
+      method: "post",
+      data: {
+        "stream_url":["https://file-examples.com/storage/fef1706276640fa2f99a5a4/2017/11/file_example_MP3_700KB.mp3"],
+        "level":0,
+        "loop":0
+      },
+    })
+    logger.info(`ADD MP3 AS RINGING TONE ${mp3add.status}`)
 
   const callStatus = CallStatus({
     status: "ringing",
     conv_id: conversation_id, 
+    members: membersIds,
     ringed_agents_memb_ids: Object.values(agentsMembersIds), 
     assigned_agent_memb_id: null,
-    customer_phone_memb_id: memberRes.data.id,
-    customer_leg_id: customerLegId
+    customer_phone_memb_id,
+    customer_phone_number,
+    customer_leg_id
   })
   logger.info(`agentsMembersId`, agentsMembersIds)
   storageClient.set(`call:${conversation_id}`, JSON.stringify(callStatus))
-  
-} 
+  console.log(callStatus, 'ELISA7')
+} catch(e){
+  console.log(e, "ELISA4")
+}
+}
 
 
 const firstSdkPickUpTheCall = async (event, { logger, csClient,storageClient },callStatus ) => {
@@ -298,6 +310,8 @@ const rtcEvent = async (event, vonage_context) => {
           //write it asyncronusly as we are not using await
           await saveCall(storageClient,callStatus)
           cleanTheCallOnFirstLeave(event, vonage_context,callStatus)  
+        }else if( callStatus.status == 'transfered'){
+          logger.info({event, callStatus},'CALL-STEP something transfer')
         }
 
         // cleanTheCallOnFirstLeave(event, vonage_context,callStatus)
@@ -323,6 +337,38 @@ const rtcEvent = async (event, vonage_context) => {
 const route = (app, express) => {
   app.use('/static', express.static(path.join(__dirname, "build")));
 
+
+  app.get('/transfer/:conversationId',async (req, res)=>{
+    const {storageClient, csClient, logger} = req.nexmo
+    const conversationId = req.params.conversationId
+    const callStatus = await loadCall(storageClient, conversationId)
+    callStatus.status = 'transfered'
+    await saveCall(storageClient, callStatus)
+    console.log(callStatus, "ELISA5")
+    //hangingup the current agent
+    await csClient({
+      url: `${DATACENTER}/v0.3/conversations/${conversationId}/members/${callStatus.assigned_agent_memb_id}`,
+      method: "patch",
+      data: {
+        state: "left",
+        reason: {
+          code: "111",
+          text: "call terminated by assigned_agent"
+        }
+      }
+    })
+    console.log(callStatus, "ELISA")
+    console.log(callStatus.ringed_agents_memb_ids, "ELISA2")
+    console.log(callStatus, "UHFOEFYUEOFGOEGF")
+    const connectedAgents = callStatus.members.filter( member => member.member_id !=callStatus.assigned_agent_memb_id).map(member => member.name)
+    console.log(connectedAgents, "ELISA3")
+    inviteAgents(connectedAgents, csClient, callStatus.customer_leg_id, callStatus.customer_phone_number, conversationId, logger, callStatus.customer_phone_memb_id, storageClient)
+    
+    const newCallStatus = await loadCall(storageClient, conversationId)
+    res.json({
+      newCallStatus
+    });
+  })
 
 
   app.get("/", function (req, res) {
