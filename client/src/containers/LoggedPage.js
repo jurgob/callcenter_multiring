@@ -84,7 +84,7 @@ function Call(member, nxmCall){
     })
 
     member.conversation.on('member:left', (memberEvent, event) => {
-        if( member.user.name === memberEvent.userName) {
+        if( (member.user.name === memberEvent.userName) && member.callStatus !== "call terminated by assigned_agent") {
             statusCallbak('cancelled')
             setTimeout(()=> statusCallbak('completed'), 500)
             // completed
@@ -192,6 +192,7 @@ function LoggedPage(props) {
                         onAnswer={() => { curCallRef.current.answer()  }} 
                         onHangUp={() => { 
                             curCallRef.current.hangUp()
+                            setCurCall(defCallStatus)
                           }} 
                         onTransfer={()=>{props.onSubmitTransfer(curCallRef.current.conversation_id)}}
                     />}
