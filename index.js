@@ -32,7 +32,7 @@ const {
 
 
 const DATACENTER = `https://api.nexmo.com`
-const CONNECTED_USERS='lalo,lala,lili'
+const CONNECTED_USERS='lalo,lala'
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -465,7 +465,7 @@ const route = (app, express) => {
     }
   });
 
-  app.get('/transfer/:conversationId',async (req, res)=>{
+  app.get('/api/transfer/:conversationId',async (req, res)=>{
     const {storageClient, csClient, logger} = req.nexmo
     const conversationId = req.params.conversationId
     const callStatus = await loadCall(storageClient, conversationId)

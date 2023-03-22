@@ -30,7 +30,7 @@ function  CallsHistory({calls}){
     )
 }
 
-function CurrentCall({status, direction,from, onReject,onAnswer,onHangUp}){
+function CurrentCall({status, direction,from, onReject,onAnswer,onHangUp, onTransfer}){
     return <div>
         <div>status: {status}</div>
         <div>direction: {direction}</div>
@@ -41,6 +41,8 @@ function CurrentCall({status, direction,from, onReject,onAnswer,onHangUp}){
             <button onClick={onAnswer} >Answer</button>
             <span> | </span>
             <button onClick={onHangUp} >Hang Up</button>
+            <span> | </span>
+            <button onClick={onTransfer} >transfer</button>
         </div>
     </div>
 }
@@ -53,6 +55,7 @@ function Call(member, nxmCall){
         direction: "outbound",
         status: "created",
         from: nxmCall.from,
+        conversation_id: nxmCall.conversation.id,
         hangUp: async () => {
             member.conversation.media.disable()
         },
@@ -94,7 +97,8 @@ function Call(member, nxmCall){
 const defCallStatus = {
     status: "",
     from:"",
-    direction:""
+    direction:"",
+    conversation_id:""
 }
 
 function LoggedPage(props) {
@@ -143,6 +147,7 @@ function LoggedPage(props) {
                                 direction: call.direction,
                                 from: call.from,
                                 status, 
+                                conversation_id: call.conversation_id,
                                 terminated_at: Date.now()
                             }
                         ])
@@ -158,6 +163,7 @@ function LoggedPage(props) {
                     from: call.from,
                     status: call.status,
                     direction: call.direction,
+                    conversation_id: call.conversation_id
                 })        
             })
         }
@@ -184,7 +190,10 @@ function LoggedPage(props) {
                         from={curCall.from}
                         onReject={() => { curCallRef.current.reject()  }} 
                         onAnswer={() => { curCallRef.current.answer()  }} 
-                        onHangUp={() => { curCallRef.current.hangUp()  }} 
+                        onHangUp={() => { 
+                            curCallRef.current.hangUp()
+                          }} 
+                        onTransfer={()=>{props.onSubmitTransfer(curCallRef.current.conversation_id)}}
                     />}
                     </div>
                     <div style={{display: "inline-block",padding: "0px 5px 0px 15px", verticalAlign:"top", borderLeft: "1px solid #999"}} >
