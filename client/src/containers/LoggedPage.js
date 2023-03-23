@@ -59,7 +59,8 @@ function Call(member, nxmCall, loginData, setCurCall) {
         from: nxmCall.from,
         conversation_id: nxmCall.conversation.id,
         hangUp: async () => {
-            member.conversation.media.disable()
+            await nxmCall.hangUp()
+            setCurCall(defCallStatus)
         },
         reject: async () => {
             member.conversation.leave({
@@ -82,24 +83,18 @@ function Call(member, nxmCall, loginData, setCurCall) {
     member.conversation.on('leg:status:update', (memberEvent, event) => {
         
         if (loginData.userName === memberEvent.userName) {
-            console.log(event.body.status, "ELISA10")
             _setStatus(event.body.status)
         }
     })
 
     member.conversation.on('member:left', (memberEvent, event) => {
-        console.log(call.status, "ELISA5")
-        console.log(memberEvent,"ELISA12345")
-        console.log(loginData,"ELISA12345343242")
-        console.log(member, "ELISA7")
-        console.log(event)
+        console.log("member:left [event]", _.cloneDeep(event))
+        console.log("member:left [member]", _.cloneDeep(member))
+
         if (memberEvent.userName === loginData.user) {
-            console.log(member.user.name, "ELISA8")
             statusCallbak("completed")
             setCurCall(defCallStatus)
         } 
-
-        console.log(call.status, "ELISA6")
     })
 
     return call
@@ -143,7 +138,7 @@ function LoggedPage(props) {
                 console.log("member:call [nxmCall]", _.cloneDeep(nxmCall))
                 const call = Call(member, nxmCall, props.loginData, setCurCall)
                 call.onCallStatusChange(status => {
-                    console.log(`call.onCallStatusChange ELISA`, status)
+                    console.log(`call.onCallStatusChange`, status)
 
                     if (status !== `completed`) {
                         setCurCall(callInfo => ({
