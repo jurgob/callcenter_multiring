@@ -480,7 +480,7 @@ const route = (app, express) => {
         state: "left",
         reason: {
           code: "111",
-          text: "call terminated by assigned_agent"
+          text: "call_transferred"
         }
       }
     })
