@@ -11,7 +11,6 @@ import EventsHistory from '../components/EventsHistory'
 import useLocalStorage from "use-local-storage";
 
 import NexmoClient from "nexmo-client";
-import * as _ from'lodash';
 
 
 const nexmoClient = new NexmoClient({ debug: true, enableInboundOffer: true });
@@ -88,8 +87,6 @@ function Call(member, nxmCall, loginData, setCurCall) {
     })
 
     member.conversation.on('member:left', (memberEvent, event) => {
-        console.log("member:left [event]", _.cloneDeep(event))
-        console.log("member:left [member]", _.cloneDeep(member))
 
         if (memberEvent.userName === loginData.user) {
             statusCallbak("completed")
@@ -134,8 +131,6 @@ function LoggedPage(props) {
             window.nexmoApp = nexmoApp
 
             nexmoApp.on("member:call", (member, nxmCall) => {
-                console.log("member:call [member]", _.cloneDeep(member))
-                console.log("member:call [nxmCall]", _.cloneDeep(nxmCall))
                 const call = Call(member, nxmCall, props.loginData, setCurCall)
                 call.onCallStatusChange(status => {
                     console.log(`call.onCallStatusChange`, status)
