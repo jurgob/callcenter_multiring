@@ -32,7 +32,6 @@ const {
 
 
 const DATACENTER = `https://api.nexmo.com`
-const CONNECTED_USERS='lalo,lala'
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -70,8 +69,7 @@ async function loadCall(storageClient,conversation_id){
 }
 
 const receivePhoneCall = async (event, { logger, csClient,storageClient } ) => {
-  // const connected_agents = await storageClient.get('connected_users') || ""
-  const connected_agents = CONNECTED_USERS
+  const connected_agents = await storageClient.get('connected_users') || ""
   const knocking_id = event.from
   const channel = event.body.channel
   const customer_leg_id = channel.id
