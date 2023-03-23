@@ -37,6 +37,15 @@ function App() {
     setsubscribeData(loginRes.data);
   };
 
+  const onSubmitTransfer = async (conversation_id) => {
+    console.log("Called!!!")
+    const transferRes = await axios({
+      url: `${BACKEND_URL}/api/transfer/${conversation_id}`,
+      method: "get",
+    });
+    setsubscribeData(transferRes.data);
+  };
+
   useEffect(() => {
     document.title = "Conversation Service examples";
   }, []);
@@ -49,7 +58,7 @@ function App() {
           onSubmitSubscribe={onSubmitSubscribe}
         />
       )}
-      {loginData && <LoggedPage loginData={loginData} />}
+      {loginData && <LoggedPage loginData={loginData} onSubmitTransfer={onSubmitTransfer}/>}
     </div>
   );
 }
